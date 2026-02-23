@@ -1,4 +1,4 @@
-# engunits
+# Engineering Units
 
 [![Tests](https://github.com/matuscvengros/engunits/actions/workflows/tests.yml/badge.svg)](https://github.com/matuscvengros/engunits/actions/workflows/tests.yml)
 [![Docs](https://github.com/matuscvengros/engunits/actions/workflows/docs.yml/badge.svg)](https://github.com/matuscvengros/engunits/actions/workflows/docs.yml)
