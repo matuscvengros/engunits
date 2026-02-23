@@ -111,7 +111,6 @@ class TestValueAndConversion:
         assert pytest.approx(m_lb.value, rel=1e-3) == 220.462
 
 
-
 class TestArithmetic:
     """Tests for arithmetic operators."""
 
