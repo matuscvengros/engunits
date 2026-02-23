@@ -1,0 +1,13 @@
+"""Pint UnitRegistry singleton for the engunits package."""
+
+from __future__ import annotations
+
+from pint import UnitRegistry, set_application_registry
+
+#: Application-wide unit registry instance.
+ureg = UnitRegistry()
+ureg.formatter.default_format = "~"
+set_application_registry(ureg)
+
+#: Shorthand constructor for :class:`pint.Quantity`.
+Q_ = ureg.Quantity  # type: ignore[reportInvalidTypeForm]
