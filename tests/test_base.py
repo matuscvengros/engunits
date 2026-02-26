@@ -1,4 +1,7 @@
-"""Tests for BaseQuantity functionality using Mass as a concrete subclass."""
+"""Tests for BaseQuantity functionality using Mass as a concrete subclass.
+
+BaseQuantity preserves input units; SI is only used as default when no unit is given.
+"""
 
 from __future__ import annotations
 
@@ -12,12 +15,12 @@ from engunits.quantities import Force, Length, Mass
 
 
 class TestConstruction:
-    """Tests for quantity construction and SI normalization."""
+    """Tests for quantity construction and unit preservation."""
 
-    def test_explicit_unit_converts_to_si(self):
+    def test_explicit_unit_preserved(self):
         m = Mass(1000, "lb")
-        assert m.units == "kg"
-        assert pytest.approx(m.value, rel=1e-4) == 453.5924
+        assert m.units == "lb"
+        assert m.value == 1000.0
 
     def test_no_unit_assumes_si(self):
         m = Mass(500)
@@ -29,29 +32,29 @@ class TestConstruction:
 
         pq = Q_(100, "lb")
         m = Mass(pq)
-        assert m.units == "kg"
-        assert pytest.approx(m.value, rel=1e-4) == 45.3592
+        assert m.units == "lb"
+        assert m.value == 100.0
 
     def test_si_unit_no_conversion(self):
         m = Mass(25, "kg")
         assert m.value == 25.0
         assert m.units == "kg"
 
-    def test_dimensionality_validation_rejects_wrong_units(self):
+    def test_dimensionality_mismatch_caught_on_conversion(self):
+        m = Mass(10, "m")
         with pytest.raises(DimensionalityError):
-            Mass(10, "m")
+            m.to("kg")
 
     def test_numpy_array_support(self):
         arr = np.array([1.0, 2.0, 3.0])
         m = Mass(arr, "kg")
         np.testing.assert_array_equal(m.value, arr)
 
-    def test_numpy_array_with_conversion(self):
+    def test_numpy_array_with_explicit_unit(self):
         arr = np.array([1.0, 2.0, 3.0])
         m = Mass(arr, "lb")
-        assert m.units == "kg"
-        expected = arr * 0.45359237
-        np.testing.assert_allclose(m.value, expected, rtol=1e-4)
+        assert m.units == "lb"
+        np.testing.assert_array_equal(m.value, arr)
 
 
 class TestNorm:
@@ -86,14 +89,14 @@ class TestNorm:
 class TestValueAndConversion:
     """Tests for .value, __call__, .to(), and .in_units_of()."""
 
-    def test_value_returns_si_magnitude(self):
+    def test_value_returns_stored_magnitude(self):
         m = Mass(1000, "lb")
-        assert pytest.approx(m.value, rel=1e-4) == 453.5924
+        assert m.value == 1000.0
 
     def test_call_converts_correctly(self):
         m = Mass(1000, "lb")
-        m_lb = m("lb")
-        assert pytest.approx(m_lb.value, rel=1e-4) == 1000.0
+        m_kg = m("kg")
+        assert pytest.approx(m_kg.value, rel=1e-4) == 453.5924
 
     def test_call_result_value_returns_target_magnitude(self):
         m = Mass(100, "kg")
@@ -114,20 +117,21 @@ class TestValueAndConversion:
 class TestArithmetic:
     """Tests for arithmetic operators."""
 
-    def test_add_same_type_returns_si(self):
+    def test_add_same_type_preserves_units(self):
         a = Mass(1000, "lb")
         b = Mass(500, "lb")
         result = a + b
         assert isinstance(result, Mass)
-        assert result.units == "kg"
-        assert pytest.approx(result("lb").value, rel=1e-3) == 1500.0
+        assert result.units == "lb"
+        assert pytest.approx(result.value, rel=1e-3) == 1500.0
 
     def test_sub_same_type(self):
         a = Mass(1000, "lb")
         b = Mass(300, "lb")
         result = a - b
         assert isinstance(result, Mass)
-        assert pytest.approx(result("lb").value, rel=1e-3) == 700.0
+        assert result.units == "lb"
+        assert pytest.approx(result.value, rel=1e-3) == 700.0
 
     def test_mul_scalar(self):
         m = Mass(10, "kg")

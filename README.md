@@ -5,7 +5,7 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-Typed engineering quantities with SI-default storage, built on [pint](https://pint.readthedocs.io/).
+Typed engineering quantities with unit-preserving storage, built on [pint](https://pint.readthedocs.io/).
 
 ## Install
 
@@ -18,9 +18,9 @@ pip install engunits
 ```python
 from engunits import Mass, Length, Velocity
 
-# Create quantities — SI units by default
-m = Mass(1000, "lb")       # stored internally as kg
-l = Length(5, "ft")         # stored internally as m
+# Create quantities — input units are preserved, SI assumed when omitted
+m = Mass(1000, "lb")       # stored as 1000 lb
+l = Length(5, "ft")         # stored as 5 ft
 
 # Convert on demand
 print(m("kg"))              # 453.592 kg

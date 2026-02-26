@@ -1,4 +1,4 @@
-"""Base quantity class with SI-default storage and on-demand conversion."""
+"""Base quantity class with unit-preserving storage and on-demand conversion."""
 
 from __future__ import annotations
 
@@ -14,8 +14,9 @@ from engunits.registry import Q_
 class BaseQuantity(ABC):
     """Abstract base for dimensioned quantities.
 
-    Stores values internally in SI units. Supports on-demand conversion via
-    callable syntax: ``mass("lb")`` returns a new instance in pounds.
+    Preserves the units given at construction. When no unit is specified, SI
+    units are used as the default. Supports on-demand conversion via callable
+    syntax: ``mass("lb")`` returns a new instance in pounds.
 
     Subclasses must define ``_quantity_type`` matching a key in ``SI_DEFAULTS``.
     """
@@ -24,13 +25,11 @@ class BaseQuantity(ABC):
 
     def __init__(self, value: float | np.ndarray | PintQuantity, unit: str | None = None) -> None:
         si_unit = SI_DEFAULTS[self._quantity_type]
-        # Always converts to SI after initialisation
-        if isinstance(value, PintQuantity):
-            self._quantity = value.to(si_unit)
-        else:
-            if unit is None:
-                unit = si_unit
-            self._quantity = Q_(value, unit).to(si_unit)
+        try:
+            unit = unit or str(value.units)
+        except AttributeError:
+            unit = unit or si_unit
+        self._quantity = Q_(value, unit)
 
     # -- Properties ----------------------------------------------------------
 
@@ -48,9 +47,11 @@ class BaseQuantity(ABC):
     def norm(self) -> float:
         """Vector magnitude (L2 norm) of the quantity."""
         mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
+        try:
+            _ = mag.shape
             return float(np.linalg.norm(mag))
-        return float(mag)
+        except AttributeError:
+            return float(mag)
 
     @property
     def units(self) -> str:
@@ -91,29 +92,31 @@ class BaseQuantity(ABC):
     # -- Arithmetic ----------------------------------------------------------
 
     def __add__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(self._quantity + other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return self.__class__(self._quantity + other._quantity)
 
     def __radd__(self, other: BaseQuantity) -> BaseQuantity:
         return self.__add__(other)
 
     def __sub__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(self._quantity - other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return self.__class__(self._quantity - other._quantity)
 
     def __rsub__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(other._quantity - self._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return self.__class__(other._quantity - self._quantity)
 
     def __mul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
-        if isinstance(other, BaseQuantity):
+        try:
             return self._quantity * other._quantity
-        if isinstance(other, (int, float, np.ndarray)):
-            return self.__class__(self._quantity * other)
-        return NotImplemented
+        except AttributeError:
+            try:
+                return self.__class__(self._quantity * other)
+            except TypeError:
+                return NotImplemented
 
     def __rmul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
         return self.__mul__(other)
@@ -122,19 +125,23 @@ class BaseQuantity(ABC):
         self,
         other: float | int | np.ndarray | BaseQuantity,
     ) -> BaseQuantity | PintQuantity | float:
-        if isinstance(other, BaseQuantity):
+        try:
+            result = self._quantity / other._quantity
+        except AttributeError:
+            try:
+                return self.__class__(self._quantity / other)
+            except TypeError:
+                return NotImplemented
+        else:
             if type(self) is type(other):
-                result = self._quantity / other._quantity
                 return float(result.to("dimensionless").magnitude)
-            return self._quantity / other._quantity
-        if isinstance(other, (int, float, np.ndarray)):
-            return self.__class__(self._quantity / other)
-        return NotImplemented
+            return result
 
     def __rtruediv__(self, other: float | int) -> PintQuantity:
-        if isinstance(other, (int, float)):
+        try:
             return other / self._quantity
-        return NotImplemented
+        except TypeError:
+            return NotImplemented
 
     def __pow__(self, exponent: int | float) -> PintQuantity:
         return self._quantity**exponent
@@ -148,58 +155,66 @@ class BaseQuantity(ABC):
     # -- Comparisons ---------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity == other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity == other._quantity)
 
     def __lt__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity < other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity < other._quantity)
 
     def __le__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity <= other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity <= other._quantity)
 
     def __gt__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity > other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity > other._quantity)
 
     def __ge__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity >= other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity >= other._quantity)
 
     # -- Representation ------------------------------------------------------
 
     def __repr__(self) -> str:
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
-        if isinstance(mag, np.ndarray):
+        try:
+            _ = mag.shape
             return f"{self.__class__.__name__}({mag!r}, '{units}')"
-        return f"{self.__class__.__name__}({mag:.6g}, '{units}')"
+        except AttributeError:
+            return f"{self.__class__.__name__}({mag:.6g}, '{units}')"
 
     def __str__(self) -> str:
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
-        if isinstance(mag, np.ndarray):
+        try:
+            _ = mag.shape
             return f"{mag} {units}"
-        return f"{mag:.6g} {units}"
+        except AttributeError:
+            return f"{mag:.6g} {units}"
 
     def __format__(self, format_spec: str) -> str:
         return format(self._quantity, format_spec)
 
     def __float__(self) -> float:
         mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
-            msg = f"cannot convert {self.__class__.__name__} with array value to float"
-            raise TypeError(msg)
-        return float(mag)
+        try:
+            _ = mag.shape
+        except AttributeError:
+            return float(mag)
+        msg = f"cannot convert {self.__class__.__name__} with array value to float"
+        raise TypeError(msg)
 
     def __hash__(self) -> int:
         mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
+        try:
+            _ = mag.shape
             return hash((self.__class__, float(np.linalg.norm(mag))))
-        return hash((self.__class__, float(mag)))
+        except AttributeError:
+            return hash((self.__class__, float(mag)))
