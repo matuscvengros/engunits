@@ -48,10 +48,9 @@ class BaseQuantity(ABC):
         """Vector magnitude (L2 norm) of the quantity."""
         mag = self._quantity.magnitude
         try:
-            _ = mag.shape
-            return float(np.linalg.norm(mag))
-        except AttributeError:
             return float(mag)
+        except TypeError:
+            return float(np.linalg.norm(mag))
 
     @property
     def units(self) -> str:
@@ -185,19 +184,17 @@ class BaseQuantity(ABC):
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
         try:
-            _ = mag.shape
-            return f"{self.__class__.__name__}({mag!r}, '{units}')"
-        except AttributeError:
             return f"{self.__class__.__name__}({mag:.6g}, '{units}')"
+        except TypeError:
+            return f"{self.__class__.__name__}({mag!r}, '{units}')"
 
     def __str__(self) -> str:
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
         try:
-            _ = mag.shape
-            return f"{mag} {units}"
-        except AttributeError:
             return f"{mag:.6g} {units}"
+        except TypeError:
+            return f"{mag} {units}"
 
     def __format__(self, format_spec: str) -> str:
         return format(self._quantity, format_spec)
@@ -205,16 +202,14 @@ class BaseQuantity(ABC):
     def __float__(self) -> float:
         mag = self._quantity.magnitude
         try:
-            _ = mag.shape
-        except AttributeError:
             return float(mag)
-        msg = f"cannot convert {self.__class__.__name__} with array value to float"
-        raise TypeError(msg)
+        except TypeError:
+            msg = f"cannot convert {self.__class__.__name__} with array value to float"
+            raise TypeError(msg) from None
 
     def __hash__(self) -> int:
         mag = self._quantity.magnitude
         try:
-            _ = mag.shape
-            return hash((self.__class__, float(np.linalg.norm(mag))))
-        except AttributeError:
             return hash((self.__class__, float(mag)))
+        except TypeError:
+            return hash((self.__class__, float(np.linalg.norm(mag))))
