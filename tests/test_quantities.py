@@ -7,6 +7,7 @@ from pint import Quantity as PintQuantity
 
 from engunits.config import SI_DEFAULTS
 from engunits.quantities import (
+    Acceleration,
     AngularVelocity,
     Area,
     Capacity,
@@ -32,6 +33,7 @@ QUANTITY_CLASSES = [
     Time,
     Temperature,
     Velocity,
+    Acceleration,
     Force,
     Moment,
     Power,
@@ -53,6 +55,7 @@ ALT_UNITS: dict[str, str] = {
     "time": "min",
     "temperature": "degF",
     "velocity": "ft/s",
+    "acceleration": "ft/s**2",
     "force": "lbf",
     "moment": "lbf*ft",
     "power": "hp",
@@ -117,6 +120,10 @@ class TestSpecificConversions:
     def test_velocity_ms_to_fts(self):
         v = Velocity(1, "m/s")
         assert pytest.approx(v("ft/s").value, rel=1e-3) == 3.28084
+
+    def test_acceleration_ms2_to_fts2(self):
+        a = Acceleration(9.80665, "m/s**2")
+        assert pytest.approx(a("ft/s**2").value, rel=1e-3) == 32.174
 
     def test_force_n_to_lbf(self):
         f = Force(1, "N")

@@ -1,6 +1,7 @@
 """Typed engineering quantities with SI-default storage, built on pint."""
 
 from engunits.quantities import (
+    Acceleration,
     AngularVelocity,
     Area,
     Capacity,
@@ -23,6 +24,7 @@ from engunits.registry import Q_, ureg
 
 __all__ = [
     "Q_",
+    "Acceleration",
     "AngularVelocity",
     "Area",
     "Capacity",

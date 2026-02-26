@@ -9,6 +9,7 @@ SI_DEFAULTS: dict[str, str] = {
     "time": "s",
     "temperature": "K",
     "velocity": "m/s",
+    "acceleration": "m/s**2",
     "force": "N",
     "moment": "N*m",
     "power": "W",

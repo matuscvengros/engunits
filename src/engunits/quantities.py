@@ -25,6 +25,10 @@ class Velocity(BaseQuantity):
     _quantity_type = "velocity"
 
 
+class Acceleration(BaseQuantity):
+    _quantity_type = "acceleration"
+
+
 class Force(BaseQuantity):
     _quantity_type = "force"
 
