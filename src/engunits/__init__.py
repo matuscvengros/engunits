@@ -1,5 +1,7 @@
 """Typed engineering quantities with SI-default storage, built on pint."""
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from engunits.base import BaseQuantity

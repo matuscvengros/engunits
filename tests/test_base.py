@@ -86,7 +86,7 @@ class TestNorm:
 
 
 class TestValueAndConversion:
-    """Tests for .value, __call__, .to(), and .in_units_of()."""
+    """Tests for .value, __call__, and .to()."""
 
     def test_value_returns_stored_magnitude(self):
         m = Mass(1000, "lb")
@@ -366,6 +366,28 @@ class TestInternalConsistency:
         m = Mass(10, "kg")
         m_lb = m("lb")
         assert pytest.approx(float(m_lb), rel=1e-3) == m_lb.norm
+
+
+class TestBool:
+    """Tests for __bool__ (truthiness)."""
+
+    def test_nonzero_is_truthy(self):
+        assert bool(Mass(10, "kg")) is True
+
+    def test_zero_is_falsy(self):
+        assert bool(Mass(0, "kg")) is False
+
+    def test_zero_float_is_falsy(self):
+        assert bool(Mass(0.0, "kg")) is False
+
+    def test_negative_is_truthy(self):
+        assert bool(Mass(-5, "kg")) is True
+
+    def test_zero_array_is_falsy(self):
+        assert bool(Force(np.array([0.0, 0.0]), "N")) is False
+
+    def test_nonzero_array_is_truthy(self):
+        assert bool(Force(np.array([0.0, 1.0]), "N")) is True
 
 
 class TestAbstractness:

@@ -99,7 +99,9 @@ class BaseQuantity(ABC):
         if type(self) is not type(other):
             return NotImplemented
         result = (self._quantity + other._quantity).to(self._quantity.units)
-        return self.__class__(result)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
     def __radd__(self, other: BaseQuantity) -> BaseQuantity:
         return self.__add__(other)
@@ -108,13 +110,17 @@ class BaseQuantity(ABC):
         if type(self) is not type(other):
             return NotImplemented
         result = (self._quantity - other._quantity).to(self._quantity.units)
-        return self.__class__(result)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
     def __rsub__(self, other: BaseQuantity) -> BaseQuantity:
         if type(self) is not type(other):
             return NotImplemented
         result = (other._quantity - self._quantity).to(other._quantity.units)
-        return self.__class__(result)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
     def __mul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
         try:
@@ -154,10 +160,14 @@ class BaseQuantity(ABC):
         return self._quantity**exponent
 
     def __neg__(self) -> BaseQuantity:
-        return self.__class__(-self._quantity)
+        instance = object.__new__(self.__class__)
+        instance._quantity = -self._quantity
+        return instance
 
     def __abs__(self) -> BaseQuantity:
-        return self.__class__(abs(self._quantity))
+        instance = object.__new__(self.__class__)
+        instance._quantity = abs(self._quantity)
+        return instance
 
     # -- Comparisons ---------------------------------------------------------
 
@@ -214,6 +224,14 @@ class BaseQuantity(ABC):
         except TypeError:
             msg = f"cannot convert {self.__class__.__name__} with array value to float"
             raise TypeError(msg) from None
+
+    def __bool__(self) -> bool:
+        """Return False only when the magnitude is zero."""
+        mag = self._quantity.magnitude
+        try:
+            return bool(mag != 0)
+        except ValueError:
+            return bool(np.any(mag != 0))
 
     def __hash__(self) -> int:
         si_unit = SI_DEFAULTS[self._quantity_type]
