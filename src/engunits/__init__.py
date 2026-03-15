@@ -1,5 +1,8 @@
 """Typed engineering quantities with SI-default storage, built on pint."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+from engunits.base import BaseQuantity
 from engunits.quantities import (
     Acceleration,
     AngularVelocity,
@@ -27,6 +30,7 @@ __all__ = [
     "Acceleration",
     "AngularVelocity",
     "Area",
+    "BaseQuantity",
     "Capacity",
     "Current",
     "Density",
@@ -45,4 +49,7 @@ __all__ = [
     "ureg",
 ]
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("engunits")
+except PackageNotFoundError:
+    __version__ = "0.0.0"

@@ -21,54 +21,11 @@ from engunits.quantities import (
     Power,
     Pressure,
     Temperature,
-    Time,
     Velocity,
     Voltage,
     Volume,
 )
-
-QUANTITY_CLASSES = [
-    Mass,
-    Length,
-    Time,
-    Temperature,
-    Velocity,
-    Acceleration,
-    Force,
-    Moment,
-    Power,
-    Energy,
-    Area,
-    Volume,
-    Density,
-    Pressure,
-    AngularVelocity,
-    Voltage,
-    Current,
-    Capacity,
-]
-
-# Alternate units for testing conversion on each type.
-ALT_UNITS: dict[str, str] = {
-    "mass": "lb",
-    "length": "ft",
-    "time": "min",
-    "temperature": "degF",
-    "velocity": "ft/s",
-    "acceleration": "ft/s**2",
-    "force": "lbf",
-    "moment": "lbf*ft",
-    "power": "hp",
-    "energy": "kJ",
-    "area": "ft**2",
-    "volume": "L",
-    "density": "lb/ft**3",
-    "pressure": "psi",
-    "angular_velocity": "rpm",
-    "voltage": "mV",
-    "current": "mA",
-    "capacity": "mA*h",
-}
+from tests.conftest import ALT_UNITS, QUANTITY_CLASSES
 
 
 class TestDefaultSIUnit:

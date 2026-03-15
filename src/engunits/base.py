@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC
 
 import numpy as np
+from pint import DimensionalityError
 from pint import Quantity as PintQuantity
 
 from engunits.config import SI_DEFAULTS
@@ -30,6 +31,10 @@ class BaseQuantity(ABC):
         except AttributeError:
             unit = unit or si_unit
         self._quantity = Q_(value, unit)
+        try:
+            self._quantity.to(si_unit)
+        except DimensionalityError:
+            raise DimensionalityError(unit, si_unit) from None
 
     # -- Properties ----------------------------------------------------------
 
@@ -40,8 +45,8 @@ class BaseQuantity(ABC):
 
     @property
     def magnitude(self) -> float | np.ndarray:
-        """Raw numeric value in current units. Alias for :attr:`value`."""
-        return self._quantity.magnitude
+        """Raw numeric value in current units. Alias for :attr:`value` for pint compatibility."""
+        return self.value
 
     @property
     def norm(self) -> float:
@@ -93,7 +98,8 @@ class BaseQuantity(ABC):
     def __add__(self, other: BaseQuantity) -> BaseQuantity:
         if type(self) is not type(other):
             return NotImplemented
-        return self.__class__(self._quantity + other._quantity)
+        result = (self._quantity + other._quantity).to(self._quantity.units)
+        return self.__class__(result)
 
     def __radd__(self, other: BaseQuantity) -> BaseQuantity:
         return self.__add__(other)
@@ -101,12 +107,14 @@ class BaseQuantity(ABC):
     def __sub__(self, other: BaseQuantity) -> BaseQuantity:
         if type(self) is not type(other):
             return NotImplemented
-        return self.__class__(self._quantity - other._quantity)
+        result = (self._quantity - other._quantity).to(self._quantity.units)
+        return self.__class__(result)
 
     def __rsub__(self, other: BaseQuantity) -> BaseQuantity:
         if type(self) is not type(other):
             return NotImplemented
-        return self.__class__(other._quantity - self._quantity)
+        result = (other._quantity - self._quantity).to(other._quantity.units)
+        return self.__class__(result)
 
     def __mul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
         try:
@@ -208,7 +216,8 @@ class BaseQuantity(ABC):
             raise TypeError(msg) from None
 
     def __hash__(self) -> int:
-        mag = self._quantity.magnitude
+        si_unit = SI_DEFAULTS[self._quantity_type]
+        mag = self._quantity.to(si_unit).magnitude
         try:
             return hash((self.__class__, float(mag)))
         except TypeError:

@@ -40,10 +40,9 @@ class TestConstruction:
         assert m.value == 25.0
         assert m.units == "kg"
 
-    def test_dimensionality_mismatch_caught_on_conversion(self):
-        m = Mass(10, "m")
+    def test_dimensionality_mismatch_caught_at_construction(self):
         with pytest.raises(DimensionalityError):
-            m.to("kg")
+            Mass(10, "m")
 
     def test_numpy_array_support(self):
         arr = np.array([1.0, 2.0, 3.0])
@@ -125,6 +124,14 @@ class TestArithmetic:
         assert result.units == "lb"
         assert pytest.approx(result.value, rel=1e-3) == 1500.0
 
+    def test_add_cross_unit_preserves_left_units(self):
+        a = Mass(1, "lb")
+        b = Mass(1, "kg")
+        result = a + b
+        assert isinstance(result, Mass)
+        assert result.units == "lb"
+        assert pytest.approx(result.value, rel=1e-3) == 3.20462
+
     def test_sub_same_type(self):
         a = Mass(1000, "lb")
         b = Mass(300, "lb")
@@ -132,6 +139,14 @@ class TestArithmetic:
         assert isinstance(result, Mass)
         assert result.units == "lb"
         assert pytest.approx(result.value, rel=1e-3) == 700.0
+
+    def test_sub_cross_unit_preserves_left_units(self):
+        a = Mass(5, "kg")
+        b = Mass(1, "lb")
+        result = a - b
+        assert isinstance(result, Mass)
+        assert result.units == "kg"
+        assert pytest.approx(result.value, rel=1e-3) == 4.54608
 
     def test_mul_scalar(self):
         m = Mass(10, "kg")
@@ -191,6 +206,25 @@ class TestArithmetic:
         length = Length(2, "m")
         result = 10 / length
         assert isinstance(result, PintQuantity)
+
+
+class TestTypeMismatch:
+    """Tests that operations between incompatible types are rejected."""
+
+    def test_add_different_types_raises(self):
+        with pytest.raises(TypeError):
+            Mass(1, "kg") + Length(1, "m")
+
+    def test_sub_different_types_raises(self):
+        with pytest.raises(TypeError):
+            Mass(1, "kg") - Length(1, "m")
+
+    def test_eq_different_types_returns_false(self):
+        assert Mass(1, "kg") != Length(1, "m")
+
+    def test_lt_different_types_raises(self):
+        with pytest.raises(TypeError):
+            assert Mass(1, "kg") < Length(1, "m")
 
 
 class TestComparisons:
@@ -255,6 +289,16 @@ class TestRepresentation:
         m1 = Mass(10, "kg")
         m2 = Mass(10, "kg")
         assert hash(m1) == hash(m2)
+
+    def test_hash_eq_consistency_cross_unit(self):
+        m1 = Mass(1, "kg")
+        m2 = Mass(1000, "g")
+        assert m1 == m2
+        assert hash(m1) == hash(m2)
+
+    def test_hash_set_membership_cross_unit(self):
+        s = {Mass(1, "kg")}
+        assert Mass(1000, "g") in s
 
     def test_quantity_property(self):
         m = Mass(10, "kg")
