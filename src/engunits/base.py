@@ -1,36 +1,75 @@
-"""Base quantity class with SI-default storage and on-demand conversion."""
+"""Base quantity class with unit-preserving storage and on-demand conversion."""
 
 from __future__ import annotations
 
 from abc import ABC
+from typing import ClassVar
 
 import numpy as np
+from pint import DimensionalityError
 from pint import Quantity as PintQuantity
 
-from engunits.config import SI_DEFAULTS
+from engunits.config import IMPERIAL_DEFAULTS, SI_DEFAULTS
 from engunits.registry import Q_
 
 
 class BaseQuantity(ABC):
     """Abstract base for dimensioned quantities.
 
-    Stores values internally in SI units. Supports on-demand conversion via
-    callable syntax: ``mass("lb")`` returns a new instance in pounds.
+    Preserves the units given at construction. When no unit is specified, SI
+    units are used as the default. Supports on-demand conversion via callable
+    syntax: ``mass("lb")`` returns a new instance in pounds.
 
     Subclasses must define ``_quantity_type`` matching a key in ``SI_DEFAULTS``.
     """
 
     _quantity_type: str
+    _dimensionality_registry: ClassVar[dict] = {}
+    _ambiguous_dimensionalities: ClassVar[set] = set()
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Register subclass dimensionality for automatic type resolution."""
+        super().__init_subclass__(**kwargs)
+        try:
+            si_unit = SI_DEFAULTS[cls._quantity_type]
+        except (AttributeError, KeyError):
+            return
+        dim = Q_(1, si_unit).dimensionality
+        if dim in BaseQuantity._ambiguous_dimensionalities:
+            return
+        if dim in BaseQuantity._dimensionality_registry:
+            del BaseQuantity._dimensionality_registry[dim]
+            BaseQuantity._ambiguous_dimensionalities.add(dim)
+        else:
+            BaseQuantity._dimensionality_registry[dim] = cls
+
+    @classmethod
+    def _resolve_type(cls, pint_quantity: PintQuantity) -> BaseQuantity | PintQuantity:
+        """Wrap a pint Quantity in the matching typed class, or return it raw.
+
+        Preserves the units from the computation rather than converting to SI.
+        Ambiguous dimensionalities (matching multiple types) return a raw pint
+        Quantity — the caller can cast to a specific type if needed.
+        """
+        try:
+            matched_cls = BaseQuantity._dimensionality_registry[pint_quantity.dimensionality]
+        except KeyError:
+            return pint_quantity
+        instance = object.__new__(matched_cls)
+        instance._quantity = pint_quantity
+        return instance
 
     def __init__(self, value: float | np.ndarray | PintQuantity, unit: str | None = None) -> None:
         si_unit = SI_DEFAULTS[self._quantity_type]
-        # Always converts to SI after initialisation
-        if isinstance(value, PintQuantity):
-            self._quantity = value.to(si_unit)
-        else:
-            if unit is None:
-                unit = si_unit
-            self._quantity = Q_(value, unit).to(si_unit)
+        try:
+            unit = unit or str(value.units)
+        except AttributeError:
+            unit = unit or si_unit
+        self._quantity = Q_(value, unit)
+        try:
+            self._quantity.to(si_unit)
+        except DimensionalityError:
+            raise DimensionalityError(unit, si_unit) from None
 
     # -- Properties ----------------------------------------------------------
 
@@ -41,16 +80,17 @@ class BaseQuantity(ABC):
 
     @property
     def magnitude(self) -> float | np.ndarray:
-        """Raw numeric value in current units. Alias for :attr:`value`."""
-        return self._quantity.magnitude
+        """Raw numeric value in current units. Alias for :attr:`value` for pint compatibility."""
+        return self.value
 
     @property
     def norm(self) -> float:
-        """Vector magnitude (L2 norm) of the quantity."""
+        """Scalar magnitude as float, or L2 norm for array values."""
         mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
+        try:
+            return float(mag)
+        except TypeError:
             return float(np.linalg.norm(mag))
-        return float(mag)
 
     @property
     def units(self) -> str:
@@ -88,32 +128,61 @@ class BaseQuantity(ABC):
         """
         return self.to(unit)
 
+    def si(self) -> BaseQuantity:
+        """Return new instance converted to SI units.
+
+        Returns:
+            New instance of the same type in SI default units.
+        """
+        return self.to(SI_DEFAULTS[self._quantity_type])
+
+    def imperial(self) -> BaseQuantity:
+        """Return new instance converted to Imperial/US customary units.
+
+        Returns:
+            New instance of the same type in Imperial default units.
+        """
+        return self.to(IMPERIAL_DEFAULTS[self._quantity_type])
+
     # -- Arithmetic ----------------------------------------------------------
 
     def __add__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(self._quantity + other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        result = (self._quantity + other._quantity).to(self._quantity.units)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
-    def __radd__(self, other: BaseQuantity) -> BaseQuantity:
+    def __radd__(self, other: int | BaseQuantity) -> BaseQuantity:
+        if other == 0:
+            return self
         return self.__add__(other)
 
     def __sub__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(self._quantity - other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        result = (self._quantity - other._quantity).to(self._quantity.units)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
     def __rsub__(self, other: BaseQuantity) -> BaseQuantity:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return self.__class__(other._quantity - self._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        result = (other._quantity - self._quantity).to(other._quantity.units)
+        instance = object.__new__(self.__class__)
+        instance._quantity = result
+        return instance
 
     def __mul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
-        if isinstance(other, BaseQuantity):
-            return self._quantity * other._quantity
-        if isinstance(other, (int, float, np.ndarray)):
-            return self.__class__(self._quantity * other)
-        return NotImplemented
+        try:
+            return self._resolve_type(self._quantity * other._quantity)
+        except AttributeError:
+            try:
+                return self.__class__(self._quantity * other)
+            except TypeError:
+                return NotImplemented
 
     def __rmul__(self, other: float | int | np.ndarray) -> BaseQuantity | PintQuantity:
         return self.__mul__(other)
@@ -122,84 +191,106 @@ class BaseQuantity(ABC):
         self,
         other: float | int | np.ndarray | BaseQuantity,
     ) -> BaseQuantity | PintQuantity | float:
-        if isinstance(other, BaseQuantity):
+        try:
+            result = self._quantity / other._quantity
+        except AttributeError:
+            try:
+                return self.__class__(self._quantity / other)
+            except TypeError:
+                return NotImplemented
+        else:
             if type(self) is type(other):
-                result = self._quantity / other._quantity
                 return float(result.to("dimensionless").magnitude)
-            return self._quantity / other._quantity
-        if isinstance(other, (int, float, np.ndarray)):
-            return self.__class__(self._quantity / other)
-        return NotImplemented
+            return self._resolve_type(result)
 
     def __rtruediv__(self, other: float | int) -> PintQuantity:
-        if isinstance(other, (int, float)):
-            return other / self._quantity
-        return NotImplemented
+        try:
+            return self._resolve_type(other / self._quantity)
+        except TypeError:
+            return NotImplemented
 
     def __pow__(self, exponent: int | float) -> PintQuantity:
-        return self._quantity**exponent
+        return self._resolve_type(self._quantity**exponent)
 
     def __neg__(self) -> BaseQuantity:
-        return self.__class__(-self._quantity)
+        instance = object.__new__(self.__class__)
+        instance._quantity = -self._quantity
+        return instance
 
     def __abs__(self) -> BaseQuantity:
-        return self.__class__(abs(self._quantity))
+        instance = object.__new__(self.__class__)
+        instance._quantity = abs(self._quantity)
+        return instance
 
     # -- Comparisons ---------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity == other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity == other._quantity)
 
     def __lt__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity < other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity < other._quantity)
 
     def __le__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity <= other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity <= other._quantity)
 
     def __gt__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity > other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity > other._quantity)
 
     def __ge__(self, other: BaseQuantity) -> bool:
-        if isinstance(other, BaseQuantity) and type(self) is type(other):
-            return bool(self._quantity >= other._quantity)
-        return NotImplemented
+        if type(self) is not type(other):
+            return NotImplemented
+        return bool(self._quantity >= other._quantity)
 
     # -- Representation ------------------------------------------------------
 
     def __repr__(self) -> str:
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
-        if isinstance(mag, np.ndarray):
+        try:
+            return f"{self.__class__.__name__}({mag:.6g}, '{units}')"
+        except TypeError:
             return f"{self.__class__.__name__}({mag!r}, '{units}')"
-        return f"{self.__class__.__name__}({mag:.6g}, '{units}')"
 
     def __str__(self) -> str:
         mag = self._quantity.magnitude
         units = str(self._quantity.units)
-        if isinstance(mag, np.ndarray):
+        try:
+            return f"{mag:.6g} {units}"
+        except TypeError:
             return f"{mag} {units}"
-        return f"{mag:.6g} {units}"
 
     def __format__(self, format_spec: str) -> str:
         return format(self._quantity, format_spec)
 
     def __float__(self) -> float:
         mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
+        try:
+            return float(mag)
+        except TypeError:
             msg = f"cannot convert {self.__class__.__name__} with array value to float"
-            raise TypeError(msg)
-        return float(mag)
+            raise TypeError(msg) from None
+
+    def __bool__(self) -> bool:
+        """Return False only when the SI-normalized magnitude is zero."""
+        si_unit = SI_DEFAULTS[self._quantity_type]
+        mag = self._quantity.to(si_unit).magnitude
+        try:
+            return bool(mag != 0)
+        except ValueError:
+            return bool(np.any(mag != 0))
 
     def __hash__(self) -> int:
-        mag = self._quantity.magnitude
-        if isinstance(mag, np.ndarray):
+        si_unit = SI_DEFAULTS[self._quantity_type]
+        mag = self._quantity.to(si_unit).magnitude
+        try:
+            return hash((self.__class__, float(mag)))
+        except TypeError:
             return hash((self.__class__, float(np.linalg.norm(mag))))
-        return hash((self.__class__, float(mag)))
