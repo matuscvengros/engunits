@@ -11,7 +11,22 @@ from pint import DimensionalityError
 from pint import Quantity as PintQuantity
 
 from engunits.base import BaseQuantity
-from engunits.quantities import Force, Length, Mass
+from engunits.config import IMPERIAL_DEFAULTS, SI_DEFAULTS
+from engunits.quantities import (
+    Acceleration,
+    Area,
+    Current,
+    Energy,
+    Force,
+    Length,
+    Mass,
+    Momentum,
+    Power,
+    Pressure,
+    Time,
+    Velocity,
+    Volume,
+)
 
 
 class TestConstruction:
@@ -113,6 +128,67 @@ class TestValueAndConversion:
         assert pytest.approx(m_lb.value, rel=1e-3) == 220.462
 
 
+class TestSIAndImperial:
+    """Tests for si() and imperial() conversion methods."""
+
+    def test_si_from_imperial(self):
+        m = Mass(1, "lb")
+        m_si = m.si()
+        assert isinstance(m_si, Mass)
+        assert m_si.units == "kg"
+        assert pytest.approx(m_si.value, rel=1e-4) == 0.453592
+
+    def test_si_already_si_is_noop(self):
+        m = Mass(10, "kg")
+        m_si = m.si()
+        assert m_si.units == "kg"
+        assert m_si.value == 10.0
+
+    def test_imperial_from_si(self):
+        m = Mass(1, "kg")
+        m_imp = m.imperial()
+        assert isinstance(m_imp, Mass)
+        assert m_imp.units == "lb"
+        assert pytest.approx(m_imp.value, rel=1e-3) == 2.20462
+
+    def test_imperial_already_imperial_is_noop(self):
+        m = Mass(10, "lb")
+        m_imp = m.imperial()
+        assert m_imp.units == "lb"
+        assert m_imp.value == 10.0
+
+    def test_si_returns_same_class(self):
+        f = Force(100, "lbf")
+        f_si = f.si()
+        assert isinstance(f_si, Force)
+        assert f_si.units == SI_DEFAULTS["force"]
+
+    def test_imperial_returns_same_class(self):
+        f = Force(100, "N")
+        f_imp = f.imperial()
+        assert isinstance(f_imp, Force)
+        assert f_imp.units == IMPERIAL_DEFAULTS["force"]
+
+    def test_si_velocity(self):
+        v = Velocity(100, "ft/s")
+        v_si = v.si()
+        assert v_si.units == "m / s"
+        assert pytest.approx(v_si.value, rel=1e-3) == 30.48
+
+    def test_imperial_velocity(self):
+        v = Velocity(10, "m/s")
+        v_imp = v.imperial()
+        assert v_imp.units == "ft / s"
+        assert pytest.approx(v_imp.value, rel=1e-3) == 32.8084
+
+    def test_si_on_cross_type_result(self):
+        result = Force(100, "N") / Mass(10, "kg")
+        assert isinstance(result, Acceleration)
+        result_si = result.si()
+        assert result_si.units == "m / s ** 2"
+        assert pytest.approx(result_si.value) == 10.0
+
+
 class TestArithmetic:
     """Tests for arithmetic operators."""
 
@@ -179,11 +255,12 @@ class TestArithmetic:
         result = m * length
         assert isinstance(result, PintQuantity)
 
-    def test_cross_type_div_returns_pint(self):
+    def test_cross_type_div_returns_typed(self):
         f = Force(100, "N")
         m = Mass(10, "kg")
         result = f / m
-        assert isinstance(result, PintQuantity)
+        assert isinstance(result, Acceleration)
+        assert pytest.approx(result.value) == 10.0
 
     def test_neg(self):
         m = Mass(10, "kg")
@@ -197,15 +274,28 @@ class TestArithmetic:
         assert isinstance(result, Mass)
         assert result.value == 10.0
 
-    def test_pow_returns_pint(self):
+    def test_pow_returns_typed(self):
         length = Length(3, "m")
         result = length**2
-        assert isinstance(result, PintQuantity)
+        assert isinstance(result, Area)
+        assert pytest.approx(result.value) == 9.0
 
     def test_rtruediv(self):
         length = Length(2, "m")
         result = 10 / length
         assert isinstance(result, PintQuantity)
+
+    def test_mul_scalar_preserves_imperial(self):
+        m = Mass(10, "lb")
+        result = m * 3
+        assert result.units == "lb"
+        assert result.value == 30.0
+
+    def test_div_scalar_preserves_imperial(self):
+        m = Mass(30, "lb")
+        result = m / 3
+        assert result.units == "lb"
+        assert result.value == 10.0
 
 
 class TestTypeMismatch:
@@ -277,7 +367,6 @@ class TestRepresentation:
     def test_float_from_non_si(self):
         m = Mass(10, "kg")
         m_lb = m("lb")
-        # __float__ uses norm property (L2 norm / scalar value)
         assert pytest.approx(float(m_lb), rel=1e-3) == 22.0462
 
     def test_format(self):
@@ -388,6 +477,104 @@ class TestBool:
 
     def test_nonzero_array_is_truthy(self):
         assert bool(Force(np.array([0.0, 1.0]), "N")) is True
+
+
+class TestTypeResolution:
+    """Tests for automatic type resolution on cross-type arithmetic."""
+
+    def test_force_div_mass_returns_acceleration(self):
+        result = Force(100, "N") / Mass(10, "kg")
+        assert isinstance(result, Acceleration)
+        assert pytest.approx(result.value) == 10.0
+
+    def test_mass_mul_acceleration_returns_force(self):
+        result = Mass(5, "kg") * Acceleration(10)
+        assert isinstance(result, Force)
+        assert pytest.approx(result.value) == 50.0
+
+    def test_velocity_mul_time_returns_length(self):
+        result = Velocity(10) * Time(5)
+        assert isinstance(result, Length)
+        assert pytest.approx(result.value) == 50.0
+
+    def test_force_div_area_returns_pressure(self):
+        result = Force(1000, "N") / Area(2)
+        assert isinstance(result, Pressure)
+        assert pytest.approx(result.value) == 500.0
+
+    def test_length_squared_returns_area(self):
+        result = Length(3, "m") ** 2
+        assert isinstance(result, Area)
+        assert pytest.approx(result.value) == 9.0
+
+    def test_length_cubed_returns_volume(self):
+        result = Length(2, "m") ** 3
+        assert isinstance(result, Volume)
+        assert pytest.approx(result.value) == 8.0
+
+    def test_energy_div_time_returns_power(self):
+        result = Energy(100) / Time(10)
+        assert isinstance(result, Power)
+        assert pytest.approx(result.value) == 10.0
+
+    def test_ambiguous_moment_energy_returns_pint(self):
+        result = Force(10, "N") * Length(5, "m")
+        assert isinstance(result, PintQuantity)
+        assert not isinstance(result, BaseQuantity)
+
+    def test_ambiguous_frequency_angular_velocity_returns_pint(self):
+        """Frequency and AngularVelocity share dimensionality [time]^-1."""
+        result = 1 / Time(2, "s")
+        assert isinstance(result, PintQuantity)
+        assert not isinstance(result, BaseQuantity)
+
+    def test_ambiguous_charge_capacity_returns_pint(self):
+        """Charge and Capacity share dimensionality [current]*[time]."""
+        result = Current(5, "A") * Time(10, "s")
+        assert isinstance(result, PintQuantity)
+        assert not isinstance(result, BaseQuantity)
+
+    def test_no_match_returns_pint(self):
+        result = Force(10, "N") * Area(2)
+        assert isinstance(result, PintQuantity)
+        assert not isinstance(result, BaseQuantity)
+
+    def test_rtruediv_no_match_returns_pint(self):
+        result = 1 / Mass(2)
+        assert isinstance(result, PintQuantity)
+        assert not isinstance(result, BaseQuantity)
+
+    def test_cross_type_preserves_units(self):
+        """Cross-type results preserve the units from computation."""
+        result = Force(100, "N") / Mass(10, "kg")
+        assert isinstance(result, Acceleration)
+        # pint computes N/kg, not m/s**2
+        assert result.units == "N / kg"
+        assert pytest.approx(result.value) == 10.0
+
+    def test_cross_type_imperial_preserves_units(self):
+        """Imperial inputs produce imperial-style computed units."""
+        result = Force(100, "lbf") / Mass(10, "lb")
+        assert isinstance(result, Acceleration)
+        assert result.units == "lbf / lb"
+        assert pytest.approx(result.value) == 10.0
+
+    def test_cross_type_result_si_converts(self):
+        """si() on a cross-type result gives canonical SI units."""
+        result = Force(100, "lbf") / Mass(10, "lb")
+        result_si = result.si()
+        assert result_si.units == "m / s ** 2"
+
+    def test_power_div_velocity_returns_force(self):
+        result = Power(1000, "W") / Velocity(10, "m/s")
+        assert isinstance(result, Force)
+        assert pytest.approx(result.value) == 100.0
+
+    def test_momentum_type_resolution(self):
+        """Mass * Velocity produces momentum dimensionality — unique resolution."""
+        result = Mass(10, "kg") * Velocity(5, "m/s")
+        assert isinstance(result, Momentum)
+        assert pytest.approx(result.value) == 50.0
 
 
 class TestAbstractness:

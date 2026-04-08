@@ -1,4 +1,6 @@
-# config
+# Configuration
+
+Default unit mappings for SI and Imperial systems.
 
 ```{eval-rst}
 .. automodule:: engunits.config
