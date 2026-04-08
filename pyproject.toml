@@ -4,7 +4,7 @@ dynamic = ["version"]
 description = "Typed engineering quantities with SI-default storage, built on pint"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "numpy>=2.0",
     "pint>=0.24",
@@ -38,7 +38,7 @@ testpaths = ["tests"]
 addopts = ["--strict-markers", "--tb=short", "-q"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py310"
 line-length = 99
 src = ["src", "tests"]
 
