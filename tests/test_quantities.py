@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import pytest
 
 from engunits.config import SI_DEFAULTS
@@ -273,3 +276,131 @@ class TestCrossTypeArithmetic:
         result = p / v
         assert isinstance(result, Force)
         assert pytest.approx(result.value) == 100.0
+
+
+class TestFrequencyAngularVelocityConversion:
+    """Tests for Frequency <-> AngularVelocity conversion (2π factor)."""
+
+    def test_frequency_to_angular_velocity(self):
+        f = Frequency(1, "Hz")
+        omega = f.to_angular_velocity()
+        assert isinstance(omega, AngularVelocity)
+        assert pytest.approx(omega.value) == 2 * math.pi
+        assert omega.units == "rad / s"
+
+    def test_angular_velocity_to_frequency(self):
+        omega = AngularVelocity(2 * math.pi, "rad/s")
+        f = omega.to_frequency()
+        assert isinstance(f, Frequency)
+        assert pytest.approx(f.value) == 1.0
+        assert f.units == "Hz"
+
+    def test_rpm_to_frequency(self):
+        omega = AngularVelocity(60, "rpm")
+        f = omega.to_frequency()
+        assert pytest.approx(f.value) == 1.0
+
+    def test_rpm_to_frequency_non_unity(self):
+        omega = AngularVelocity(120, "rpm")
+        f = omega.to_frequency()
+        assert pytest.approx(f.value) == 2.0
+
+    def test_frequency_to_angular_velocity_khz(self):
+        f = Frequency(1, "kHz")
+        omega = f.to_angular_velocity()
+        assert pytest.approx(omega.value) == 2000 * math.pi
+
+    def test_roundtrip_frequency_angular_velocity(self):
+        f_original = Frequency(50, "Hz")
+        f_roundtrip = f_original.to_angular_velocity().to_frequency()
+        assert pytest.approx(f_roundtrip.value) == 50.0
+
+    def test_roundtrip_angular_velocity_frequency(self):
+        omega_original = AngularVelocity(100, "rad/s")
+        omega_roundtrip = omega_original.to_frequency().to_angular_velocity()
+        assert pytest.approx(omega_roundtrip.value) == 100.0
+
+    def test_numpy_array_frequency_to_angular_velocity(self):
+        f = Frequency(np.array([1.0, 2.0, 3.0]), "Hz")
+        omega = f.to_angular_velocity()
+        expected = np.array([1.0, 2.0, 3.0]) * 2 * math.pi
+        np.testing.assert_allclose(omega.value, expected)
+
+    def test_numpy_array_angular_velocity_to_frequency(self):
+        omega = AngularVelocity(np.array([2 * math.pi, 4 * math.pi]), "rad/s")
+        f = omega.to_frequency()
+        np.testing.assert_allclose(f.value, np.array([1.0, 2.0]))
+
+
+class TestEnergyMomentConversion:
+    """Tests for Energy <-> Moment dimensional cast."""
+
+    def test_energy_to_moment(self):
+        e = Energy(100, "J")
+        m = e.to_moment()
+        assert isinstance(m, Moment)
+        assert pytest.approx(m.value) == 100.0
+
+    def test_moment_to_energy(self):
+        m = Moment(50, "N*m")
+        e = m.to_energy()
+        assert isinstance(e, Energy)
+        assert pytest.approx(e.value) == 50.0
+
+    def test_energy_kj_to_moment(self):
+        e = Energy(1, "kJ")
+        m = e.to_moment()
+        assert pytest.approx(m.value) == 1000.0
+
+    def test_moment_imperial_to_energy(self):
+        m = Moment(100, "lbf*ft")
+        e = m.to_energy()
+        assert pytest.approx(e.value, rel=1e-4) == 135.5818
+
+    def test_roundtrip_energy_moment(self):
+        e_original = Energy(42, "J")
+        e_roundtrip = e_original.to_moment().to_energy()
+        assert pytest.approx(e_roundtrip.value) == 42.0
+
+    def test_roundtrip_moment_energy(self):
+        m_original = Moment(77, "N*m")
+        m_roundtrip = m_original.to_energy().to_moment()
+        assert pytest.approx(m_roundtrip.value) == 77.0
+
+
+class TestChargeCapacityConversion:
+    """Tests for Charge <-> Capacity dimensional cast."""
+
+    def test_charge_to_capacity(self):
+        q = Charge(3600, "C")
+        cap = q.to_capacity()
+        assert isinstance(cap, Capacity)
+        assert pytest.approx(cap.value) == 1.0
+        assert cap.units == "A * h"
+
+    def test_capacity_to_charge(self):
+        cap = Capacity(1, "A*h")
+        q = cap.to_charge()
+        assert isinstance(q, Charge)
+        assert pytest.approx(q.value) == 3600.0
+        assert q.units == "C"
+
+    def test_capacity_mah_to_charge(self):
+        cap = Capacity(1000, "mA*h")
+        q = cap.to_charge()
+        assert pytest.approx(q.value) == 3600.0
+
+    def test_charge_mc_to_capacity(self):
+        q = Charge(3600000, "mC")
+        cap = q.to_capacity()
+        assert pytest.approx(cap.value) == 1.0
+
+    def test_roundtrip_charge_capacity(self):
+        q_original = Charge(7200, "C")
+        q_roundtrip = q_original.to_capacity().to_charge()
+        assert pytest.approx(q_roundtrip.value) == 7200.0
+
+    def test_roundtrip_capacity_charge(self):
+        cap_original = Capacity(5, "A*h")
+        cap_roundtrip = cap_original.to_charge().to_capacity()
+        assert pytest.approx(cap_roundtrip.value) == 5.0

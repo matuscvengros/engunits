@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import math
+
 from engunits.base import BaseQuantity
+from engunits.config import SI_DEFAULTS
 
 # =============================================================================
 # SI base quantities
@@ -88,6 +91,15 @@ class Moment(BaseQuantity):
 
     _quantity_type = "moment"
 
+    def to_energy(self) -> Energy:
+        """Reinterpret this moment as energy (dimensional cast).
+
+        Moment and energy share dimensionality ``[mass] * [length]² / [time]²``.
+        Returns a new :class:`Energy` in SI units (joules).
+        """
+        converted = self._quantity.to(SI_DEFAULTS["energy"])
+        return Energy(converted)
+
 
 class Energy(BaseQuantity):
     """An energy quantity, defaulting to joules.
@@ -97,6 +109,15 @@ class Energy(BaseQuantity):
     """
 
     _quantity_type = "energy"
+
+    def to_moment(self) -> Moment:
+        """Reinterpret this energy as moment/torque (dimensional cast).
+
+        Energy and moment share dimensionality ``[mass] * [length]² / [time]²``.
+        Returns a new :class:`Moment` in SI units (newton-meters).
+        """
+        converted = self._quantity.to(SI_DEFAULTS["moment"])
+        return Moment(converted)
 
 
 class Power(BaseQuantity):
@@ -139,6 +160,19 @@ class Frequency(BaseQuantity):
 
     _quantity_type = "frequency"
 
+    def to_angular_velocity(self) -> AngularVelocity:
+        """Convert frequency to angular velocity using ``ω = 2πf``.
+
+        Pint treats radians as dimensionless, so it cannot account for the
+        ``2π`` factor between cycles and radians. This method applies the
+        correct physical relationship.
+
+        Returns:
+            New :class:`AngularVelocity` in rad/s.
+        """
+        hz = self._quantity.to("Hz").magnitude
+        return AngularVelocity(hz * 2 * math.pi, "rad/s")
+
 
 class Momentum(BaseQuantity):
     """A linear momentum quantity, defaulting to kilogram-meters per second."""
@@ -154,6 +188,19 @@ class AngularVelocity(BaseQuantity):
     """
 
     _quantity_type = "angular_velocity"
+
+    def to_frequency(self) -> Frequency:
+        """Convert angular velocity to frequency using ``f = ω / 2π``.
+
+        Pint treats radians as dimensionless, so it cannot account for the
+        ``2π`` factor between cycles and radians. This method applies the
+        correct physical relationship.
+
+        Returns:
+            New :class:`Frequency` in Hz.
+        """
+        rads = self._quantity.to("rad/s").magnitude
+        return Frequency(rads / (2 * math.pi), "Hz")
 
 
 class AngularAcceleration(BaseQuantity):
@@ -198,6 +245,15 @@ class Charge(BaseQuantity):
 
     _quantity_type = "charge"
 
+    def to_capacity(self) -> Capacity:
+        """Reinterpret this charge as battery capacity (dimensional cast).
+
+        Charge and capacity share dimensionality ``[current] * [time]``.
+        Returns a new :class:`Capacity` in ampere-hours.
+        """
+        converted = self._quantity.to(SI_DEFAULTS["capacity"])
+        return Capacity(converted)
+
 
 class Capacity(BaseQuantity):
     """An electric capacity quantity, defaulting to ampere-hours.
@@ -207,6 +263,15 @@ class Capacity(BaseQuantity):
     """
 
     _quantity_type = "capacity"
+
+    def to_charge(self) -> Charge:
+        """Reinterpret this capacity as electric charge (dimensional cast).
+
+        Capacity and charge share dimensionality ``[current] * [time]``.
+        Returns a new :class:`Charge` in coulombs.
+        """
+        converted = self._quantity.to(SI_DEFAULTS["charge"])
+        return Charge(converted)
 
 
 class Resistance(BaseQuantity):
