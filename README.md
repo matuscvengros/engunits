@@ -4,6 +4,7 @@
 [![Docs](https://github.com/matuscvengros/engunits/actions/workflows/docs.yml/badge.svg)](https://github.com/matuscvengros/engunits/actions/workflows/docs.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/engunits)](https://pypi.org/project/engunits/)
 
 Typed engineering quantities with unit-preserving storage, built on [pint](https://pint.readthedocs.io/).
 
